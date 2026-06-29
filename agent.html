@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>پنل کاربر - گزارش‌نویسی گروهی</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- ============================================ -->
+        <!-- بخش: ورود کاربر -->
+        <!-- ============================================ -->
+        <div id="loginSection">
+            <h2>ورود کاربر</h2>
+            <div class="form-group">
+                <label for="systemName">نام سیستم (موسسه):</label>
+                <input type="text" id="systemName" class="form-control" placeholder="نام سیستم را وارد کنید">
+                <div id="systemHint" style="font-size:12px;color:#666;margin-top:5px;"></div>
+            </div>
+            <div class="form-group">
+                <label for="agentName">نام کاربری:</label>
+                <input type="text" id="agentName" class="form-control" placeholder="نام کاربری خود را وارد کنید">
+            </div>
+            <div class="form-group">
+                <label for="agentPassword">رمز عبور:</label>
+                <input type="password" id="agentPassword" class="form-control" placeholder="رمز خود را وارد کنید">
+            </div>
+            <button id="agentLoginBtn" class="btn btn-success">ورود</button>
+            <div id="agentLoginError" class="error" style="display:none;"></div>
+            <div id="agentLoginMessage" style="margin-top:10px;"></div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- بخش: پنل کاربر (پس از ورود) -->
+        <!-- ============================================ -->
+        <div id="agentPanel" style="display:none;">
+            <h2>پنل کاربر: <span id="agentNameDisplay"></span></h2>
+            <div class="button-group">
+                <button id="agentLogoutBtn" class="btn btn-danger">خروج</button>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- بخش: لیست وایتبردها -->
+            <!-- ============================================ -->
+            <div id="whiteboardsSection">
+                <h3>وایتبردهای مجاز</h3>
+                <div id="whiteboardsList"></div>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- بخش: نمایش وایتبرد -->
+            <!-- ============================================ -->
+            <div id="whiteboardView" style="display:none;">
+                <h3 id="currentWhiteboardTitle"></h3>
+                <div class="button-group">
+                    <button id="backToWhiteboardsBtn" class="btn btn-secondary">بازگشت به لیست</button>
+                    <button id="createNewWhiteboardAgentBtn" class="btn btn-primary" style="display:none;">ایجاد وایتبرد جدید</button>
+                </div>
+                <div id="whiteboardMessages"></div>
+                <div id="newMessageSection" style="display:none;">
+                    <h4>ثبت گزارش جدید</h4>
+                    <div class="form-group">
+                        <textarea id="newMessageText" class="form-control" rows="4" placeholder="متن گزارش خود را بنویسید..."></textarea>
+                    </div>
+                    <button id="submitMessageBtn" class="btn btn-success">ثبت و ارسال گزارش</button>
+                    <div id="submitMessageResult" style="margin-top:10px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ============================================
+    // متغیرهای全局
+    // ============================================
+    var currentBossUsername = '';      // system_name
+    var currentAgentName = '';
+    var currentWhiteboards = [];
+    var currentWhiteboardName = '';
+    var currentAccessLevel = 0;
+    var bossUsernameReal = '';         // boss_username واقعی از دیتابیس مدیریت
+
+    // ============================================
+    // تابع: loadAvailableSystems
+    // وظیفه: نمایش لیست سیستم‌های موجود برای راهنمایی
+    // ورودی: ندارد
+    // خروجی: ندارد
+    // ============================================
+    function loadAvailableSystems() {
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', 'whiteboard.php', true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                try {
+                    var response = JSON.parse(xhr.responseText);
+                    if (response.success && response.data && response.data.length > 0) {
+                        var hint = document.getElementById('systemHint');
+                        if (hint) {
+                            hint.innerHTML = '💡 سیستم‌های موجود: ' + response.data.join('، ');
+                            hint.style.color = '#2980b9';
+                            hint.style.fontWeight = 'bold';
+                        }
+                    }
+                } catch(e) {
+                    console.log('خطا در بارگذاری سیستم‌ها:', e);
+                }
+            }
+        };
+        xhr.send('action=get_available_systems_for_agent');
+    }
+
+    // ============================================
+    // تابع: agentLogin
+    // وظیفه: ورود کاربر
+    // ورودی: ندارد
+    // خروجی: ندارد
+    // ============================================
+    function agentLogin() {
+        var systemName = document.getElementById('systemName').value.trim();
+        var agentName = document.getElementById('agentName').value.trim();
+        var password = document.getElementById('agentPassword').value.trim();
+        var errorDiv = document.getElementById('agentLoginError');
+        var messageDiv = document.getElementById('agentLoginMessage');
+        
+        if (!systemName || !agentName || !password) {
+            errorDiv.style.display = 'block';
+            errorDiv.textContent = 'لطفاً همه فیلدها را پر کنید';
+            return;
+        }
+        
+        errorDiv.style.display = 'none';
+        if (messageDiv) messageDiv.innerHTML = '⏳ در حال بررسی...';
+        
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', 'whiteboard.php', true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+                if (messageDiv) messageDiv.innerHTML = '';
+                
+                if (xhr.status === 200) {
+                    try {
+                        var response = JSON.parse(xhr.responseText);
+                        
+                        if (response.success) {
+                            currentBossUsername = systemName;
+                            currentAgentName = agentName;
+                            document.getElementById('agentNameDisplay').textContent = agentName;
+                            document.getElementById('loginSection').style.display = 'none';
+                            document.getElementById('agentPanel').style.display = 'block';
+                            errorDiv.style.display = 'none';
+                            
+                            // بارگذاری وایتبردها
+                            loadAgentWhiteboards();
+                        } else {
+                            errorDiv.style.display = 'block';
+                            errorDiv.textContent = '❌ ' + (response.error || 'نام کاربری یا رمز اشتباه است');
+                            document.getElementById('agentPassword').value = '';
+                            document.getElementById('agentPassword').focus();
+                        }
+                    } catch (e) {
+                        errorDiv.style.display = 'block';
+                        errorDiv.textContent = '❌ خطا در پردازش پاسخ سرور';
+                    }
+                } else {
+                    errorDiv.style.display = 'block';
+                    errorDiv.textContent = '❌ خطا در ارتباط با سرور (کد: ' + xhr.status + ')';
+                }
+            }
+        };
+        
+        xhr.onerror = function() {
+            if (messageDiv) messageDiv.innerHTML = '';
+            errorDiv.style.display = 'block';
+            errorDiv.textContent = '❌ خطا در اتصال به سرور';
+        };
+        
+        xhr.send('action=verify_agent&system_name=' + encodeURIComponent(systemName) + 
+                 '&agent_name=' + encodeURIComponent(agentName) + 
+                 '&password=' + encodeURIComponent(password));
+    }
+
+    // ============================================
+    // تابع: loadAgentWhiteboards
+    // وظیفه: بارگذاری وایتبردهای مجاز برای کاربر
+    // ورودی: ندارد
+    // خروجی: ندارد
+    // ============================================
+// ============================================
+// تابع: loadAgentWhiteboards
+// وظیفه: بارگذاری وایتبردهای مجاز برای کاربر
+// ورودی: ندارد
+// خروجی: ندارد
+// ============================================
+function loadAgentWhiteboards() {
+    var systemName = currentBossUsername; // این همان system_name است
+    
+    if (!systemName) {
+        document.getElementById('whiteboardsList').innerHTML = '<p class="error">❌ خطا: نام سیستم وارد نشده</p>';
+        return;
+    }
+    
+    // دیگر نیازی به دریافت boss_username نیست
+    // مستقیماً از system_name استفاده می‌کنیم
+    bossUsernameReal = systemName; // در نسخه جدید، system_name همان نام دیتابیس است
+    
+    // بارگذاری وایتبردهای مجاز برای این کاربر
+    loadWhiteboardsWithRealBoss();
+}
+
+// ============================================
+// تابع: loadWhiteboardsWithRealBoss
+// وظیفه: بارگذاری وایتبردهای مجاز برای کاربر
+// ورودی: ندارد
+// خروجی: ندارد
+// ============================================
+// ============================================
+// تابع: loadWhiteboardsWithRealBoss
+// وظیفه: بارگذاری وایتبردهای مجاز برای کاربر
+// ورودی: ندارد
+// خروجی: ندارد
+// ============================================
+function loadWhiteboardsWithRealBoss() {
+    if (!bossUsernameReal) {
+        document.getElementById('whiteboardsList').innerHTML = '<p class="error">❌ خطا: اطلاعات سیستم یافت نشد</p>';
+        return;
+    }
+    
+    // استفاده از system_name برای دریافت وایتبردهای مجاز
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', 'whiteboard.php', true);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4 && xhr.status === 200) {
+            try {
+                var response = JSON.parse(xhr.responseText);
+                
+                if (response.success) {
+                    var whiteboardsWithLevel = response.data || [];
+                    currentWhiteboards = whiteboardsWithLevel;
+                    displayAgentWhiteboards();
+                } else {
+                    document.getElementById('whiteboardsList').innerHTML = '<p class="error">❌ خطا در بارگذاری وایتبردها: ' + (response.error || 'نامشخص') + '</p>';
+                }
+            } catch(e) {
+                console.error('خطا:', e);
+                document.getElementById('whiteboardsList').innerHTML = '<p class="error">❌ خطا در پردازش پاسخ سرور</p>';
+            }
+        }
+    };
+    // ارسال system_name به جای boss_username
+    xhr.send('action=get_whiteboards_for_agent&system_name=' + encodeURIComponent(bossUsernameReal) + 
+             '&agent_name=' + encodeURIComponent(currentAgentName));
+}
+
+// ============================================
+// تابع: displayAgentWhiteboards
+// وظیفه: نمایش لیست وایتبردهای مجاز با سطح دسترسی
+// ورودی: ندارد
+// خروجی: ندارد
+// ============================================
+function displayAgentWhiteboards() {
+    var container = document.getElementById('whiteboardsList');
+    
+    if (!currentWhiteboards || currentWhiteboards.length === 0) {
+        container.innerHTML = '<p class="info">شما به هیچ وایتبردی دسترسی ندارید.</p>';
+        return;
+    }
+
+    var html = '<div class="whiteboard-grid">';
+    currentWhiteboards.forEach(function(item) {
+        var wbName = item.name || item; // برای سازگاری با هر دو فرمت
+        var level = item.level || 0;
+        
+        // فقط وایتبردهایی که سطح دسترسی > 0 دارند نمایش داده شوند
+        if (level > 0) {
+            var levelText = '';
+            if (level === 1) levelText = '🔍 فقط خواندن';
+            else if (level === 2) levelText = '✏️ خواندن و نوشتن';
+            else if (level === 3) levelText = '🔧 دسترسی کامل';
+            
+            html += '<div class="whiteboard-item">';
+            html += '<h4>' + wbName + '</h4>';
+            html += '<p style="font-size:12px;color:#666;">' + levelText + '</p>';
+            html += '<button onclick="viewWhiteboard(\'' + wbName + '\')" class="btn btn-primary btn-sm">مشاهده</button>';
+            html += '</div>';
+        }
+    });
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+    // ============================================
+    // تابع: viewWhiteboard
+    // وظیفه: نمایش محتوای یک وایتبرد
+    // ورودی: whiteboardName
+    // خروجی: ندارد
+    // ============================================
+// ============================================
+// تابع: viewWhiteboard
+// وظیفه: نمایش محتوای یک وایتبرد
+// ورودی: whiteboardName
+// خروجی: ندارد
+// ============================================
+// ============================================
+// تابع: viewWhiteboard
+// وظیفه: نمایش محتوای یک وایتبرد
+// ورودی: whiteboardName
+// خروجی: ندارد
+// ============================================
+function viewWhiteboard(whiteboardName) {
+    // بررسی اینکه کاربر به این وایتبرد دسترسی دارد یا نه
+    var hasAccess = false;
+    var userLevel = 0;
+    
+    for (var i = 0; i < currentWhiteboards.length; i++) {
+        var item = currentWhiteboards[i];
+        var name = item.name || item;
+        if (name === whiteboardName) {
+            hasAccess = true;
+            userLevel = item.level || 0;
+            break;
+        }
+    }
+    
+    if (!hasAccess || userLevel === 0) {
+        alert('شما به این وایتبرد دسترسی ندارید.');
+        return;
+    }
+    
+    currentWhiteboardName = whiteboardName;
+    currentAccessLevel = userLevel;
+    
+    if (!bossUsernameReal) {
+        alert('خطا: اطلاعات سیستم یافت نشد. لطفاً دوباره وارد شوید.');
+        return;
+    }
+    
+    document.getElementById('whiteboardsSection').style.display = 'none';
+    document.getElementById('whiteboardView').style.display = 'block';
+    document.getElementById('currentWhiteboardTitle').textContent = 'وایتبرد: ' + whiteboardName;
+    
+    loadWhiteboardMessages(whiteboardName);
+}
+
+    // ============================================
+    // تابع: loadWhiteboardMessages
+    // وظیفه: بارگذاری پیام‌های وایتبرد
+    // ورودی: whiteboardName
+    // خروجی: ندارد
+    // ============================================
+// ============================================
+// تابع: loadWhiteboardMessages
+// وظیفه: بارگذاری پیام‌های وایتبرد
+// ورودی: whiteboardName
+// خروجی: ندارد
+// ============================================
+function loadWhiteboardMessages(whiteboardName) {
+    if (!bossUsernameReal) {
+        document.getElementById('whiteboardMessages').innerHTML = '<p class="error">❌ خطا: اطلاعات سیستم یافت نشد</p>';
+        return;
+    }
+    
+    document.getElementById('whiteboardMessages').innerHTML = '<p style="color:blue;">⏳ در حال بارگذاری پیام‌ها...</p>';
+    
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', 'whiteboard.php', true);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4 && xhr.status === 200) {
+            try {
+                var response = JSON.parse(xhr.responseText);
+                
+                if (response.success) {
+                    var messages = response.data || [];
+                    // سطح دسترسی قبلاً در viewWhiteboard ذخیره شده
+                    renderWhiteboardMessages(whiteboardName, messages, currentAccessLevel);
+                } else {
+                    document.getElementById('whiteboardMessages').innerHTML = '<p class="error">❌ خطا در بارگذاری پیام‌ها: ' + (response.error || 'نامشخص') + '</p>';
+                }
+            } catch(e) {
+                console.error('خطا:', e);
+                document.getElementById('whiteboardMessages').innerHTML = '<p class="error">❌ خطا در پردازش پاسخ سرور</p>';
+            }
+        }
+    };
+    // ارسال system_name به جای boss_username
+    xhr.send('action=get_messages&system_name=' + encodeURIComponent(bossUsernameReal) + 
+             '&whiteboard_name=' + encodeURIComponent(whiteboardName));
+}
+
+    // ============================================
+    // تابع: getAccessLevel
+    // وظیفه: دریافت سطح دسترسی کاربر
+    // ورودی: whiteboardName, messages
+    // خروجی: ندارد
+    // ============================================
+    function getAccessLevel(whiteboardName, messages) {
+        if (!bossUsernameReal) {
+            document.getElementById('whiteboardMessages').innerHTML = '<p class="error">❌ خطا: اطلاعات سیستم یافت نشد</p>';
+            return;
+        }
+        
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', 'whiteboard.php', true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                try {
+                    var response = JSON.parse(xhr.responseText);
+                    
+                    if (response.success && response.data) {
+                        var level = 0;
+                        var users = response.data.users || [];
+                        
+                        for (var i = 0; i < users.length; i++) {
+                            if (users[i].agent === currentAgentName) {
+                                level = users[i][whiteboardName] || 0;
+                                break;
+                            }
+                        }
+                        
+                        currentAccessLevel = level;
+                        renderWhiteboardMessages(whiteboardName, messages, level);
+                    } else {
+                        currentAccessLevel = 0;
+                        renderWhiteboardMessages(whiteboardName, messages, 0);
+                    }
+                } catch(e) {
+                    currentAccessLevel = 0;
+                    renderWhiteboardMessages(whiteboardName, messages, 0);
+                }
+            }
+        };
+        xhr.send('action=get_access_matrix&boss_username=' + encodeURIComponent(bossUsernameReal));
+    }
+
+    // ============================================
+    // تابع: renderWhiteboardMessages
+    // وظیفه: رندر پیام‌های وایتبرد با توجه به سطح دسترسی
+    // ورودی: whiteboardName, messages, level
+    // خروجی: ندارد
+    // ============================================
+// ============================================
+// تابع: renderWhiteboardMessages
+// وظیفه: رندر پیام‌های وایتبرد با توجه به سطح دسترسی
+// ورودی: whiteboardName, messages, level
+// خروجی: ندارد
+// ============================================
+function renderWhiteboardMessages(whiteboardName, messages, level) {
+    var container = document.getElementById('whiteboardMessages');
+    
+    // اگر سطح دسترسی 0 باشد، دسترسی ندارد
+    if (level === 0) {
+        container.innerHTML = '<p class="error">⛔ شما به این وایتبرد دسترسی ندارید.</p>';
+        document.getElementById('newMessageSection').style.display = 'none';
+        document.getElementById('createNewWhiteboardAgentBtn').style.display = 'none';
+        return;
+    }
+    
+    // نمایش دکمه ایجاد وایتبرد جدید اگر سطح دسترسی 2 یا 3 باشد
+    var createBtn = document.getElementById('createNewWhiteboardAgentBtn');
+    if (createBtn) {
+        createBtn.style.display = (level >= 2) ? 'inline-block' : 'none';
+        if (level >= 2) {
+            createBtn.onclick = function() {
+                createAgentWhiteboard();
+            };
+        }
+    }
+
+    // نمایش بخش ثبت پیام اگر سطح دسترسی 2 یا 3 باشد
+    var msgSection = document.getElementById('newMessageSection');
+    if (msgSection) {
+        msgSection.style.display = (level >= 2) ? 'block' : 'none';
+    }
+    
+    // نمایش پیام‌ها
+    var html = '';
+    
+    if (!messages || messages.length === 0) {
+        html = '<p class="info">📝 هنوز پیامی در این وایتبرد ثبت نشده است.</p>';
+    } else {
+        html = '<div class="table-responsive"><table class="table table-bordered">';
+        html += '<thead><tr><th>#</th><th>تاریخ</th><th>کاربر</th><th>متن</th>';
+        if (level >= 3) {
+            html += '<th>عملیات</th>';
+        }
+        html += '</tr></thead>';
+        html += '<tbody>';
+        messages.forEach(function(msg, index) {
+            html += '<tr>';
+            html += '<td>' + (index + 1) + '</td>';
+            html += '<td>' + msg.date + '</td>';
+            html += '<td>' + msg.agent + '</td>';
+            html += '<td>' + msg.message + '</td>';
+            if (level >= 3) {
+                html += '<td><button onclick="deleteAgentMessage(' + msg.id + ')" class="btn btn-danger btn-sm">🗑️ حذف</button></td>';
+            }
+            html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+    }
+    
+    container.innerHTML = html;
+}
+
+    // ============================================
+    // تابع: submitAgentMessage
+    // وظیفه: ثبت پیام جدید توسط کاربر
+    // ورودی: ندارد
+    // خروجی: ندارد
+    // ============================================
+// ============================================
+// تابع: submitAgentMessage
+// وظیفه: ثبت پیام جدید توسط کاربر
+// ورودی: ندارد
+// خروجی: ندارد
+// ============================================
+function submitAgentMessage() {
+    var message = document.getElementById('newMessageText').value.trim();
+    var resultDiv = document.getElementById('submitMessageResult');
+    
+    if (!message) {
+        alert('لطفاً متن گزارش را وارد کنید');
+        return;
+    }
+    
+    if (!bossUsernameReal) {
+        alert('خطا: اطلاعات سیستم یافت نشد. لطفاً دوباره وارد شوید.');
+        return;
+    }
+    
+    var submitBtn = document.getElementById('submitMessageBtn');
+    submitBtn.disabled = true;
+    submitBtn.textContent = '⏳ در حال ثبت...';
+    resultDiv.innerHTML = '<div style="color:blue;">⏳ در حال ثبت گزارش...</div>';
+    
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', 'whiteboard.php', true);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'ثبت و ارسال گزارش';
+            
+            if (xhr.status === 200) {
+                try {
+                    var response = JSON.parse(xhr.responseText);
+                    
+                    if (response.success) {
+                        document.getElementById('newMessageText').value = '';
+                        resultDiv.innerHTML = '<div class="success">✅ گزارش با موفقیت ثبت شد</div>';
+                        
+                        setTimeout(function() {
+                            loadWhiteboardMessages(currentWhiteboardName);
+                            setTimeout(function() {
+                                resultDiv.innerHTML = '';
+                            }, 3000);
+                        }, 500);
+                    } else {
+                        resultDiv.innerHTML = '<div class="error">❌ خطا: ' + (response.error || 'نامشخص') + '</div>';
+                    }
+                } catch (e) {
+                    resultDiv.innerHTML = '<div class="error">❌ خطا در پردازش پاسخ سرور</div>';
+                }
+            } else {
+                resultDiv.innerHTML = '<div class="error">❌ خطا در ارتباط با سرور (کد: ' + xhr.status + ')</div>';
+            }
+        }
+    };
+    xhr.onerror = function() {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'ثبت و ارسال گزارش';
+        resultDiv.innerHTML = '<div class="error">❌ خطا در اتصال به سرور</div>';
+    };
+    // ارسال system_name به جای boss_username
+    xhr.send('action=add_message&system_name=' + encodeURIComponent(bossUsernameReal) + 
+             '&whiteboard_name=' + encodeURIComponent(currentWhiteboardName) + 
+             '&agent=' + encodeURIComponent(currentAgentName) + 
+             '&message=' + encodeURIComponent(message));
+}
+
+    // ============================================
+    // تابع: deleteAgentMessage
+    // وظیفه: حذف پیام توسط کاربر (سطح دسترسی 3)
+    // ورودی: messageId
+    // خروجی: ندارد
+    // ============================================
+// ============================================
+// تابع: deleteAgentMessage
+// وظیفه: حذف پیام توسط کاربر (سطح دسترسی 3)
+// ورودی: messageId
+// خروجی: ندارد
+// ============================================
+function deleteAgentMessage(messageId) {
+    if (!confirm('آیا از حذف این پیام مطمئن هستید؟')) return;
+    
+    if (!bossUsernameReal) {
+        alert('خطا: اطلاعات سیستم یافت نشد');
+        return;
+    }
+    
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', 'whiteboard.php', true);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4 && xhr.status === 200) {
+            try {
+                var response = JSON.parse(xhr.responseText);
+                if (response.success) {
+                    alert('✅ پیام با موفقیت حذف شد');
+                    loadWhiteboardMessages(currentWhiteboardName);
+                } else {
+                    alert('❌ خطا در حذف پیام: ' + (response.error || 'نامشخص'));
+                }
+            } catch(e) {
+                alert('❌ خطا در پردازش پاسخ سرور');
+            }
+        }
+    };
+    // ارسال system_name به جای boss_username
+    xhr.send('action=delete_message&system_name=' + encodeURIComponent(bossUsernameReal) + 
+             '&whiteboard_name=' + encodeURIComponent(currentWhiteboardName) + 
+             '&message_id=' + messageId + 
+             '&agent=' + encodeURIComponent(currentAgentName));
+}
+
+    // ============================================
+    // تابع: createAgentWhiteboard
+    // وظیفه: ایجاد وایتبرد جدید توسط کاربر
+    // ورودی: ندارد
+    // خروجی: ندارد
+    // ============================================
+// ============================================
+// تابع: createAgentWhiteboard
+// وظیفه: ایجاد وایتبرد جدید توسط کاربر
+// ورودی: ندارد
+// خروجی: ندارد
+// ============================================
+function createAgentWhiteboard() {
+    var name = prompt('نام وایتبرد جدید را وارد کنید:');
+    if (!name || name.trim() === '') return;
+    
+    if (!bossUsernameReal) {
+        alert('خطا: اطلاعات سیستم یافت نشد');
+        return;
+    }
+    
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', 'whiteboard.php', true);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4 && xhr.status === 200) {
+            try {
+                var response = JSON.parse(xhr.responseText);
+                if (response.success) {
+                    alert('✅ وایتبرد با موفقیت ایجاد شد');
+                    goBackToWhiteboards();
+                } else {
+                    alert('❌ خطا در ایجاد وایتبرد: ' + (response.error || 'احتمالاً نام تکراری است'));
+                }
+            } catch(e) {
+                alert('❌ خطا در پردازش پاسخ سرور');
+            }
+        }
+    };
+    // ارسال system_name به جای boss_username
+    xhr.send('action=create_whiteboard&system_name=' + encodeURIComponent(bossUsernameReal) + 
+             '&whiteboard_name=' + encodeURIComponent(name.trim()) + 
+             '&agent=' + encodeURIComponent(currentAgentName));
+}
+
+    // ============================================
+    // تابع: goBackToWhiteboards
+    // وظیفه: بازگشت به لیست وایتبردها
+    // ورودی: ندارد
+    // خروجی: ندارد
+    // ============================================
+    function goBackToWhiteboards() {
+        document.getElementById('whiteboardView').style.display = 'none';
+        document.getElementById('whiteboardsSection').style.display = 'block';
+        loadAgentWhiteboards();
+    }
+
+    // ============================================
+    // تابع: agentLogout
+    // وظیفه: خروج کاربر
+    // ورودی: ندارد
+    // خروجی: ندارد
+    // ============================================
+    function agentLogout() {
+        location.reload();
+    }
+
+    // ============================================
+    // رویدادها
+    // ============================================
+    document.addEventListener('DOMContentLoaded', function() {
+        // بارگذاری لیست سیستم‌ها برای راهنمایی
+        loadAvailableSystems();
+    });
+
+    document.getElementById('agentLoginBtn').addEventListener('click', agentLogin);
+    document.getElementById('agentLogoutBtn').addEventListener('click', agentLogout);
+    document.getElementById('backToWhiteboardsBtn').addEventListener('click', goBackToWhiteboards);
+    document.getElementById('submitMessageBtn').addEventListener('click', submitAgentMessage);
+
+    // کلید Enter برای ورود
+    document.getElementById('agentPassword').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') agentLogin();
+    });
+    document.getElementById('agentName').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') agentLogin();
+    });
+    document.getElementById('systemName').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') agentLogin();
+    });
+    </script>
+</body>
+</html>
