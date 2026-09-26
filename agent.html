@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>پنل کاربر - گزارش‌نویسی گروهی</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <style>
+        /* استایل‌های مشترک */
+        .whiteboard-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin: 15px 0; }
+        .whiteboard-item { background: #f8f9fa; border: 1px solid #ddd; border-radius: 8px; padding: 15px; text-align: center; }
+        .whiteboard-item:hover { transform: translateY(-3px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 15px; }
+        .form-control { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px; box-sizing: border-box; }
+        .btn { display: inline-block; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: bold; margin: 5px; }
+        .btn-primary { background: #3498db; color: #fff; }
+        .btn-success { background: #2ecc71; color: #fff; }
+        .btn-danger { background: #e74c3c; color: #fff; }
+        .btn-warning { background: #f39c12; color: #fff; }
+        .btn-secondary { background: #95a5a6; color: #fff; }
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
+        .btn-xs { padding: 2px 8px; font-size: 11px; }
+        .button-group { margin: 15px 0; display: flex; flex-wrap: wrap; gap: 10px; }
+        .error { color: #e74c3c; background: #fde8e8; padding: 10px; border-radius: 5px; margin: 10px 0; border-right: 3px solid #e74c3c; }
+        .success { color: #27ae60; background: #e8f8f0; padding: 10px; border-radius: 5px; margin: 10px 0; border-right: 3px solid #27ae60; }
+        .info { color: #2980b9; background: #e8f4f8; padding: 10px; border-radius: 5px; margin: 10px 0; border-right: 3px solid #2980b9; }
+        .hidden { display: none; }
+        .table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 14px; }
+        .table th { background: #3498db; color: #fff; padding: 10px; text-align: right; }
+        .table td { padding: 10px; border-bottom: 1px solid #ddd; }
+        .table-bordered { border: 1px solid #ddd; }
+        .table-bordered th, .table-bordered td { border: 1px solid #ddd; }
+        .table-responsive { overflow-x: auto; }
+        .reminder-item { background: #f8f9fa; border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 10px; }
+        .reminder-item:hover { background: #f0f0f0; }
+        .reminder-item .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; }
+        .badge-warning { background: #f39c12; color: #fff; }
+        .badge-danger { background: #e74c3c; color: #fff; }
+        .badge-success { background: #2ecc71; color: #fff; }
+        .badge-info { background: #3498db; color: #fff; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin: 2px; }
+        @media (max-width: 768px) {
+            .btn { width: 100%; }
+            .button-group { flex-direction: column; }
+            .whiteboard-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- ============================================ -->
+        <!-- بخش: ورود کاربر -->
+        <!-- ============================================ -->
+        <div id="loginSection">
+            <h2>ورود کاربر</h2>
+            <div id="welcomeMessage" style="display:none;background:#e8f4f8;padding:10px;border-radius:5px;margin-bottom:15px;border-right:3px solid #2980b9;">
+                <p id="welcomeText" style="margin:0;color:#2980b9;"></p>
+            </div>
+            <div class="form-group">
+                <label for="systemName">نام سیستم (موسسه):</label>
+                <input type="text" id="systemName" class="form-control" placeholder="نام سیستم را وارد کنید">
+                <div id="systemHint" style="font-size:12px;color:#666;margin-top:5px;"></div>
+            </div>
+            <div class="form-group">
+                <label for="agentName">نام کاربری:</label>
+                <input type="text" id="agentName" class="form-control" placeholder="نام کاربری خود را وارد کنید">
+            </div>
+            <div class="form-group">
+                <label for="agentPassword">رمز عبور:</label>
+                <input type="password" id="agentPassword" class="form-control" placeholder="رمز خود را وارد کنید">
+            </div>
+            <div class="form-group" style="display:flex;align-items:center;gap:10px;">
+                <input type="checkbox" id="rememberMe" checked>
+                <label for="rememberMe" style="margin:0;font-weight:normal;">مرا به خاطر بسپار</label>
+            </div>
+            <button id="agentLoginBtn" class="btn btn-success">ورود</button>
+            <div id="agentLoginError" class="error hidden"></div>
+            <div id="agentLoginMessage" style="margin-top:10px;"></div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- بخش: پنل کاربر (پس از ورود) -->
+        <!-- ============================================ -->
+        <div id="agentPanel" class="hidden">
+            <h2>پنل کاربر: <span id="agentNameDisplay"></span></h2>
+            <div class="button-group">
+                <button id="agentLogoutBtn" class="btn btn-danger">خروج</button>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- بخش: برگه‌ها (Tab) -->
+            <!-- ============================================ -->
+            <div class="button-group" style="border-bottom:2px solid #ddd;padding-bottom:10px;">
+                <button class="tab-btn btn btn-primary" data-tab="whiteboards">📋 وایتبردها</button>
+                <button class="tab-btn btn btn-primary" data-tab="reminders">📩 یادآوری‌ها</button>
+                <button class="tab-btn btn btn-primary" data-tab="send_reminder">✉️ ارسال یادآوری</button>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- برگه ۱: لیست وایتبردها -->
+            <!-- ============================================ -->
+            <div id="tab_whiteboards" class="tab-content">
+                <h3>وایتبردهای مجاز</h3>
+                <div id="whiteboardsList"></div>
+                <div id="whiteboardView" class="hidden">
+                    <h3 id="currentWhiteboardTitle"></h3>
+                    <div class="button-group">
+                        <button id="backToWhiteboardsBtn" class="btn btn-secondary">بازگشت به لیست</button>
+                        <button id="createNewWhiteboardAgentBtn" class="btn btn-primary hidden">ایجاد وایتبرد جدید</button>
+                    </div>
+                    <div id="whiteboardMessages"></div>
+                    <div id="newMessageSection" class="hidden">
+                        <h4>ثبت گزارش جدید</h4>
+                        <div class="form-group">
+                            <textarea id="newMessageText" class="form-control" rows="4" placeholder="متن گزارش خود را بنویسید..."></textarea>
+                        </div>
+                        <button id="submitMessageBtn" class="btn btn-success">ثبت و ارسال گزارش</button>
+                        <div id="submitMessageResult" style="margin-top:10px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- برگه ۲: مشاهده یادآوری‌ها -->
+            <!-- ============================================ -->
+            <div id="tab_reminders" class="tab-content hidden">
+                <h3>📩 یادآوری‌های دریافتی</h3>
+                <div id="remindersList">
+                    <p class="info">⏳ در حال بارگذاری...</p>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- برگه ۳: ارسال یادآوری -->
+            <!-- ============================================ -->
+            <div id="tab_send_reminder" class="tab-content hidden">
+                <h3>✉️ ارسال یادآوری به کاربر دیگر</h3>
+                <div id="sendReminderForm">
+                    <div class="form-group">
+                        <label for="reminderReceiver">گیرنده:</label>
+                        <select id="reminderReceiver" class="form-control">
+                            <option value="">-- انتخاب کنید --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="reminderWhiteboards">وایتبردهای مرتبط (چند انتخابی):</label>
+                        <select id="reminderWhiteboards" class="form-control" multiple style="height:80px;">
+                        </select>
+                        <small style="color:#666;">برای انتخاب چند گزینه، کلید Ctrl را نگه دارید.</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="reminderMessage">متن یادآوری:</label>
+                        <textarea id="reminderMessage" class="form-control" rows="3" placeholder="متن یادآوری را بنویسید..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="reminderDeadTime">زمان انقضا (مهلت انجام):</label>
+                        <input type="datetime-local" id="reminderDeadTime" class="form-control">
+                    </div>
+                    <button id="sendReminderBtn" class="btn btn-success">ارسال یادآوری</button>
+                    <div id="sendReminderResult" style="margin-top:10px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ============================================
+    // متغیرهای全局
+    // ============================================
+    var currentBossUsername = '';
+    var currentAgentName = '';
+    var currentWhiteboards = [];
+    var currentWhiteboardName = '';
+    var currentAccessLevel = 0;
+    var bossUsernameReal = '';
+
+    // ============================================
+    // توابع تب (Tab)
+    // ============================================
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(function(el) {
+            el.classList.add('hidden');
+        });
+        document.getElementById('tab_' + tabId).classList.remove('hidden');
+        
+        // بارگذاری داده‌های مربوطه
+        if (tabId === 'reminders') {
+            loadReminders();
+        } else if (tabId === 'send_reminder') {
+            loadUsersAndWhiteboardsForReminder();
+        }
+    }
+
+    document.querySelectorAll('.tab-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var tabId = this.getAttribute('data-tab');
+            switchTab(tabId);
+        });
+    });
+
+    // ============================================
+    // توابع ذخیره و بازیابی اطلاعات
+    // ============================================
+    function loadSavedAgentInfo() {
+        var savedSystem = localStorage.getItem('agent_system_name');
+        var savedAgent = localStorage.getItem('agent_username');
+        
+        if (savedSystem) {
+            document.getElementById('systemName').value = savedSystem;
+        }
+        if (savedAgent) {
+            document.getElementById('agentName').value = savedAgent;
+        }
+        
+        if (savedSystem && savedAgent) {
+            document.getElementById('welcomeMessage').style.display = 'block';
+            document.getElementById('welcomeText').innerHTML = '👋 خوش آمدید <strong>' + savedAgent + '</strong>! لطفاً رمز خود را وارد کنید.';
+            document.getElementById('agentPassword').focus();
+        }
+    }
+
+    function clearSavedAgentInfo() {
+        localStorage.removeItem('agent_system_name');
+        localStorage.removeItem('agent_username');
+    }
+
+    // ============================================
+    // تابع: loadAvailableSystems
+    // ============================================
+    function loadAvailableSystems() {
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', 'whiteboard.php', true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                try {
+                    var response = JSON.parse(xhr.responseText);
+                    if (response.success && response.data && response.data.length > 0) {
+                        var hint = document.getElementById('systemHint');
+                        if (hint) {
+                            hint.innerHTML = '💡 سیستم‌های موجود: ' + response.data.join('، ');
+                            hint.style.color = '#2980b9';
+                            hint.style.fontWeight = 'bold';
+                        }
+                    }
+                } catch(e) {
+                    console.log('خطا در بارگذاری سیستم‌ها:', e);
+                }
+            }
+        };
+        xhr.send('action=get_available_systems_for_agent');
+    }
+
+    // ============================================
+    // تابع: agentLogin
+    // ============================================
+    function agentLogin() {
+        var systemName = document.getElementById('systemName').value.trim();
+        var agentName = document.getElementById('agentName').value.trim();
+        var password = document.getElementById('agentPassword').value.trim();
+        var rememberMe = document.getElementById('rememberMe').checked;
+        var errorDiv = document.getElementById('agentLoginError');
+        var messageDiv = document.getElementById('agentLoginMessage');
+
+        if (!systemName || !agentName || !password) {
+            errorDiv.classList.remove('hidden');
+            errorDiv.textContent = 'لطفاً همه فیلدها را پر کنید';
+            return;
+        }
+
+        errorDiv.classList.add('hidden');
+        if (messageDiv) messageDiv.innerHTML = '⏳ در حال بررسی...';
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', 'whiteboard.php', true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+                if (messageDiv) messageDiv.innerHTML = '';
+                if (xhr.status === 200) {
+                    try {
+                        var response = JSON.parse(xhr.responseText);
+                        if (response.success) {
+                            if (rememberMe) {
+                                localStorage.setItem('agent_system_name', systemName);
+                                localStorage.setItem('agent_username', agentName);
+                            } else {
+                                clearSavedAgentInfo();
+                            }
+                            currentBossUsername = systemName;
+                            currentAgentName = agentName;
+                            document.getElementById('agentNameDisplay').textContent = agentName;
+                            document.getElementById('loginSection').style.display = 'none';
+                            document.getElementById('agentPanel').classList.remove('hidden');
+                            errorDiv.classList.add('hidden');
+                            bossUsernameReal = systemName;
+                            loadWhiteboardsWithRealBoss();
+                            
+                            // بارگذاری لیست کاربران برای ارسال یادآوری
+                            loadUsersAndWhiteboardsForReminder();
+                        } else {
+                            errorDiv.classList.remove('hidden');
+                            errorDiv.textContent = '❌ ' + (response.error || 'نام کاربری یا رمز اشتباه است');
+                            document.getElementById('agentPassword').value = '';
+                            document.getElementById('agentPassword').focus();
+                        }
+                    } catch(e) {
+                        errorDiv.classList.remove('hidden');
+                        errorDiv.textContent = '❌ خطا در پردازش پاسخ سرور';
+                    }
+                } else {
+                    errorDiv.classList.remove('hidden');
+                    errorDiv.textContent = '❌ خطا در ارتباط با سرور (کد: ' + xhr.status + ')';
+                }
+            }
+        };
+        xhr.send('action=verify_agent&system_name=' + encodeURIComponent(systemName) + 
+                 '&agent_name=' + encodeURIComponent(agentName) + 
+                 '&password=' + encodeURIComponent(password));
+    }
+
+    // ============================================
+    // توابع وایتبرد (قبلی)
+    // ============================================
+    function loadWhiteboardsWithRealBoss() {
+        if (!bossUsernameReal) {
+            document.getElementById('whiteboardsList').innerHTML = '<p class="error">❌ خطا: اطلاعات سیستم یافت نشد</p>';
+            return;
+        }
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', 'whiteboard.php', true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                try {
+                    var response = JSON.parse(xhr.responseText);
+                    if (response.success) {
+                        currentWhiteboards = response.data || [];
+                        displayAgentWhiteboards();
+                    } else {
+                        document.getElementById('whiteboardsList').innerHTML = '<p class="error">❌ خطا در بارگذاری وایتبردها: ' + (response.error || 'نامشخص') + '</p>';
+                    }
+                } catch(e) {
+                    document.getElementById('whiteboardsList').innerHTML = '<p class="error">❌ خطا در پردازش پاسخ سرور</p>';
+                }
+            }
+        };
+        xhr.send('action=get_whiteboards_for_agent&system_name=' + encodeURIComponent(bossUsernameReal) + 
+                 '&agent_name=' + encodeURIComponent(currentAgentName));
+    }
+
+    function displayAgentWhiteboards() {
+        var container = document.getElementById('whiteboardsList');
+        if (!currentWhiteboards || currentWhiteboards.length === 0) {
+            container.innerHTML = '<p class="info">شما به هیچ وایتبردی دسترسی ندارید.</p>';
+            return;
+        }
+
+        var html = '<div class="whiteboard-grid">';
+        currentWhiteboards.forEach(function(item) {
+            var wbName = item.name || item;
+            var level = item.level || 0;
+            if (level > 0) {
+                var levelText = '';
+                if (level === 1) levelText = '🔍 فقط خواندن';
+                else if (level === 2) levelText = '✏️ خواندن و نوشتن';
+                else if (level === 3) levelText = '🔧 دسترسی کامل';
+                html += '<div class="whiteboard-item">';
+                html += '<h4>' + wbName + '</h4>';
+                html += '<p style="font-size:12px;color:#666;">' + levelText + '</p>';
+                html += '<button onclick="viewWhiteboard(\'' + wbName + '\')" class="btn btn-primary btn-sm">مشاهده</button>';
+                html += '</div>';
+            }
+        });
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    function viewWhiteboard(whiteboardName) {
+        var hasAccess = false;
+        var userLevel = 0;
+        for (var i = 0; i < currentWhiteboards.length; i++) {
+            var item = currentWhiteboards[i];
+            var name = item.name || item;
+            if (name === whiteboardName) {
+                hasAccess = true;
+                userLevel = item.level || 0;
+                break;
+            }
+        }
+        if (!hasAccess || userLevel === 0) {
+            alert('شما به این وایتبرد دسترسی ندارید.');
+            return;
+        }
+        currentWhiteboardName = whiteboardName;
+        currentAccessLevel = userLevel;
+        if (!bossUsernameReal) {
+            alert('خطا: اطلاعات سیستم یافت نشد. لطفاً دوباره وارد شوید.');
+            return;
+        }
+        document.getElementById('whiteboardsList').style.display = 'none';
+        document.getElementById('whiteboardView').classList.remove('hidden');
+        document.getElementById('currentWhiteboardTitle').textContent = 'وایتبرد: ' + whiteboardName;
+        loadWhiteboardMessages(whiteboardName);
+    }
+
+    function loadWhiteboardMessages(whiteboardName) {
+        if (!bossUsernameReal) {
+            document.getElementById('whiteboardMessages').innerHTML = '<p class="error">❌ خطا: اطلاعات سیستم یافت نشد</p>';
+            return;
+        }
+        document.getElementById('whiteboardMessages').innerHTML = '<p style="color:blue;">⏳ در حال بارگذاری پیام‌ها...</p>';
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', 'whiteboard.php', true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                try {
+                    var response = JSON.parse(xhr.responseText);
+                    if (response.success) {
+                        var messages = response.data || [];
+                        renderWhiteboardMessages(whiteboardName, messages, currentAccessLevel);
+                    } else {
+                        document.getElementById('whiteboardMessages').innerHTML = '<p class="error">❌ خطا در بارگذاری پیام‌ها: ' + (response.error || 'نامشخص') + '</p>';
+                    }
+                } catch(e) {
+                    document.getElementById('whiteboardMessages').innerHTML = '<p class="error">❌ خطا در پردازش پاسخ سرور</p>';
+                }
+            }
+        };
+        xhr.send('action=get_messages&system_name=' + encodeURIComponent(bossUsernameReal) + 
+                 '&whiteboard_name=' + encodeURIComponent(whiteboardName));
+    }
+
+    function renderWhiteboardMessages(whiteboardName, messages, level) {
+        var container = document.getElementById('whiteboardMessages');
+        if (level === 0) {
+            container.innerHTML = '<p class="error">⛔ شما به این وایتبرد دسترسی ندارید.</p>';
+            document.getElementById('newMessageSection').classList.add('hidden');
+            document.getElementById('createNewWhiteboardAgentBtn').classList.add('hidden');
+            return;
+        }
+        var createBtn = document.getElementById('createNewWhiteboardAgentBtn');
+        if (createBtn) {
+            if (level >= 2) {
+                createBtn.classList.remove('hidden');
+                createBtn.onclick = function() { createAgentWhiteboard(); };
+            } else {
+                createBtn.classList.add('hidden');
+            }
+        }
+        var msgSection = document.getElementById('newMessageSection');
+        if (msgSection) {
+            if (level >= 2) {
+                msgSection.classList.remove('hidden');
+            } else {
+                msgSection.classList.add('hidden');
+            }
+        }
+        var html = '';
+        if (!messages || messages.length === 0) {
+            html = '<p class="info">📝 هنوز پیامی در این وایتبرد ثبت نشده است.</p>';
+        } else {
+            html = '<div class="table-responsive"><table class="table table-bordered">';
+            html += '<thead><tr><th>#</th><th>تاریخ</th><th>کاربر</th><th>متن</th>';
+            if (level >= 3) html += '<th>عملیات</th>';
+            html += '</tr></thead><tbody>';
+            messages.forEach(function(msg, index) {
+                html += '<tr><td>' + (index + 1) + '</td><td>' + msg.date + '</td><td>' + msg.agent + '</td><td>' + msg.message + '</td>';
+                if (level >= 3) {
+                    html += '<td><button onclick="deleteAgentMessage(' + msg.id + ')" class="btn btn-danger btn-sm">🗑️ حذف</button></td>';
+                }
+                html += '</tr>';
+            });
+            html += '</tbody></table></div>';
+        }
+        container.innerHTML = html;
+    }
+
+    function submitAgentMessage() {
+        var message = document.getElementById('newMessageText').value.trim();
+        var resultDiv = document.getElementById('submitMessageResult');
+        if (!message) {
+            alert('لطفاً متن گزارش را وارد کنید');
+            return;
+        }
+        if (!bossUsernameReal) {
+            alert('خطا: اطلاعات سیستم یافت نشد. لطفاً دوباره وارد شوید.');
+            return;
+        }
+        var submitBtn = document.getElementById('submitMessageBtn');
+        submitBtn.disabled = true;
+        submitBtn.textContent = '⏳ در حال ثبت...';
+        resultDiv.innerHTML = '<div style="color:blue;">⏳ در حال ثبت گزارش...</div>';
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', 'whiteboard.php', true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'ثبت و ارسال گزارش';
+                if (xhr.status === 200) {
+                    try {
+                        var response = JSON.parse(xhr.responseText);
+                        if (response.success) {
+                            document.getElementById('newMessageText').value = '';
+                            resultDiv.innerHTML = '<div class="success">✅ گزارش با موفقیت ثبت شد</div>';
+                            setTimeout(function() {
+                                loadWhiteboardMessages(currentWhiteboardName);
+                                setTimeout(function() { resultDiv.innerHTML = ''; }, 3000);
+                            }, 500);
+                        } else {
+                            resultDiv.innerHTML = '<div class="error">❌ خطا: ' + (response.error || 'نامشخص') + '</div>';
+                        }
+                    } catch(e) {
+                        resultDiv.innerHTML = '<div class="error">❌ خطا در پردازش پاسخ سرور</div>';
+                    }
+                } else {
+                    resultDiv.innerHTML = '<div class="error">❌ خطا در ارتباط با سرور (کد: ' + xhr.status + ')</div>';
+                }
+            }
+        };
+        xhr.send('action=add_message&system_name=' + encodeURIComponent(bossUsernameReal) + 
+                 '&whiteboard_name=' + encodeURIComponent(currentWhiteboardName) + 
+                 '&agent=' + encodeURIComponent(currentAgentName) + 
+                 '&message=' + encodeURIComponent(message));
+    }
+
+    function deleteAgentMessage(messageId) {
+        if (!confirm('آیا از حذف این پیام مطمئن هستید؟')) return;
+        if (!bossUsernameReal) {
+            alert('خطا: اطلاعات سیستم یافت نشد');
+            return;
+        }
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', 'whiteboard.php', true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                try {
+                    var response = JSON.parse(xhr.responseText);
+                    if (response.success) {
+                        alert('✅ پیام با موفقیت حذف شد');
+                        loadWhiteboardMessages(currentWhiteboardName);
+                    } else {
+                        alert('❌ خطا در حذف پیام: ' + (response.error || 'نامشخص'));
+                    }
+                } catch(e) {
+                    alert('❌ خطا در پردازش پاسخ سرور');
+                }
+            }
+        };
+        xhr.send('action=delete_message&system_name=' + encodeURIComponent(bossUsernameReal) + 
+                 '&whiteboard_name=' + encodeURIComponent(currentWhiteboardName) + 
+                 '&message_id=' + messageId + 
+                 '&agent=' + encodeURIComponent(currentAgentName));
+    }
+
+    function createAgentWhiteboard() {
+        var name = prompt('نام وایتبرد جدید را وارد کنید:');
+        if (!name || name.trim() === '') return;
+        if (!bossUsernameReal) {
+            alert('خطا: اطلاعات سیستم یافت نشد');
+            return;
+        }
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', 'whiteboard.php', true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                try {
+                    var response = JSON.parse(xhr.responseText);
+                    if (response.success) {
+                        alert('✅ وایتبرد با موفقیت ایجاد شد');
+                        goBackToWhiteboards();
+                    } else {
+                        alert('❌ خطا در ایجاد وایتبرد: ' + (response.error || 'احتمالاً نام تکراری است'));
+                    }
+                } catch(e) {
+                    alert('❌ خطا در پردازش پاسخ سرور');
+                }
+            }
+        };
+        xhr.send('action=create_whiteboard&system_name=' + encodeURIComponent(bossUsernameReal) + 
+                 '&whiteboard_name=' + encodeURIComponent(name.trim()) + 
+                 '&agent=' + encodeURIComponent(currentAgentName));
+    }
+
+    function goBackToWhiteboards() {
+        document.getElementById('whiteboardView').classList.add('hidden');
+        document.getElementById('whiteboardsList').style.display = 'block';
+        loadWhiteboardsWithRealBoss();
+    }
+
+    // ============================================
+    // توابع جدید: سیستم پیام‌رسان
+    // ============================================
+    
+    // بارگذاری لیست کاربران و وایتبردها برای فرم ارسال یادآوری
+    function loadUsersAndWhiteboardsForReminder() {
+        if (!bossUsernameReal) return;
+        
+        // دریافت لیست کاربران
+        var xhrUsers = new XMLHttpRequest();
+        xhrUsers.open('POST', 'whiteboard.php', true);
+        xhrUsers.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhrUsers.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhrUsers.onreadystatechange = function() {
+            if (xhrUsers.readyState === 4 && xhrUsers.status === 200) {
+                try {
+                    var response = JSON.parse(xhrUsers.responseText);
+                    if (response.success) {
+                        var select = document.getElementById('reminderReceiver');
+                        select.innerHTML = '<option value="">-- انتخاب کنید --</option>';
+                        response.data.forEach(function(user) {
+                            if (user !== currentAgentName) { // خود کاربر را حذف کنیم
+                                select.innerHTML += '<option value="' + user + '">' + user + '</option>';
+                            }
+                        });
+                    }
+                } catch(e) {
+                    console.log('خطا در دریافت لیست کاربران:', e);
+                }
+            }
+        };
+        xhrUsers.send('action=get_users_list&system_name=' + encodeURIComponent(bossUsernameReal));
+        
+        // دریافت لیست وایتبردها
+        var xhrWB = new XMLHttpRequest();
+        xhrWB.open('POST', 'whiteboard.php', true);
+        xhrWB.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhrWB.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhrWB.onreadystatechange = function() {
+            if (xhrWB.readyState === 4 && xhrWB.status === 200) {
+                try {
+                    var response = JSON.parse(xhrWB.responseText);
+                    if (response.success) {
+                        var select = document.getElementById('reminderWhiteboards');
+                        select.innerHTML = '';
+                        response.data.forEach(function(wb) {
+                            select.innerHTML += '<option value="' + wb + '">' + wb + '</option>';
+                        });
+                    }
+                } catch(e) {
+                    console.log('خطا در دریافت لیست وایتبردها:', e);
+                }
+            }
+        };
+        xhrWB.send('action=get_whiteboards&system_name=' + encodeURIComponent(bossUsernameReal));
+    }
+
+    // ارسال یادآوری جدید
+    function sendReminder() {
+        var receiver = document.getElementById('reminderReceiver').value;
+        var whiteboardsSelect = document.getElementById('reminderWhiteboards');
+        var whiteboards = [];
+        for (var i = 0; i < whiteboardsSelect.options.length; i++) {
+            if (whiteboardsSelect.options[i].selected) {
+                whiteboards.push(whiteboardsSelect.options[i].value);
+            }
+        }
+        var message = document.getElementById('reminderMessage').value.trim();
+        var deadTime = document.getElementById('reminderDeadTime').value;
+        var resultDiv = document.getElementById('sendReminderResult');
+
+        if (!receiver) {
+            resultDiv.innerHTML = '<div class="error">❌ لطفاً گیرنده را انتخاب کنید</div>';
+            return;
+        }
+        if (!message) {
+            resultDiv.innerHTML = '<div class="error">❌ لطفاً متن یادآوری را وارد کنید</div>';
+            return;
+        }
+        if (!deadTime) {
+            resultDiv.innerHTML = '<div class="error">❌ لطفاً زمان انقضا را انتخاب کنید</div>';
+            return;
+        }
+
+        resultDiv.innerHTML = '<div style="color:blue;">⏳ در حال ارسال یادآوری...</div>';
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', 'whiteboard.php', true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                try {
+                    var response = JSON.parse(xhr.responseText);
+                    if (response.success) {
+                        resultDiv.innerHTML = '<div class="success">✅ یادآوری با موفقیت ارسال شد</div>';
+                        document.getElementById('reminderMessage').value = '';
+                        document.getElementById('reminderDeadTime').value = '';
+                        // بارگذاری مجدد لیست پیام‌ها
+                        loadReminders();
+                    } else {
+                        resultDiv.innerHTML = '<div class="error">❌ خطا: ' + (response.error || 'نامشخص') + '</div>';
+                    }
+                } catch(e) {
+                    resultDiv.innerHTML = '<div class="error">❌ خطا در پردازش پاسخ سرور</div>';
+                }
+            }
+        };
+        xhr.send('action=send_reminder&system_name=' + encodeURIComponent(bossUsernameReal) + 
+                 '&receiver=' + encodeURIComponent(receiver) + 
+                 '&whiteboards=' + encodeURIComponent(whiteboards.join(',')) + 
+                 '&message=' + encodeURIComponent(message) + 
+                 '&dead_time=' + encodeURIComponent(deadTime));
+    }
+
+    // بارگذاری یادآوری‌های دریافتی
+    function loadReminders() {
+        if (!bossUsernameReal) {
+            document.getElementById('remindersList').innerHTML = '<p class="error">❌ خطا: اطلاعات سیستم یافت نشد</p>';
+            return;
+        }
+
+        document.getElementById('remindersList').innerHTML = '<p class="info">⏳ در حال بارگذاری...</p>';
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', 'whiteboard.php', true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                try {
+                    var response = JSON.parse(xhr.responseText);
+                    if (response.success) {
+                        displayReminders(response.data);
+                    } else {
+                        document.getElementById('remindersList').innerHTML = '<p class="error">❌ خطا: ' + (response.error || 'نامشخص') + '</p>';
+                    }
+                } catch(e) {
+                    document.getElementById('remindersList').innerHTML = '<p class="error">❌ خطا در پردازش پاسخ سرور</p>';
+                }
+            }
+        };
+        xhr.send('action=get_reminders&system_name=' + encodeURIComponent(bossUsernameReal) + 
+                 '&username=' + encodeURIComponent(currentAgentName));
+    }
+
+    // نمایش یادآوری‌ها
+    function displayReminders(reminders) {
+        var container = document.getElementById('remindersList');
+        
+        if (!reminders || reminders.length === 0) {
+            container.innerHTML = '<p class="info">📭 هیچ یادآوری برای شما وجود ندارد.</p>';
+            return;
+        }
+
+        var html = '';
+        reminders.forEach(function(rem) {
+            var statusClass = 'badge-info';
+            var statusText = 'در انتظار';
+            
+            // بررسی زمان باقیمانده
+            if (rem.remaining.indexOf('زمان گذشته') !== -1) {
+                statusClass = 'badge-danger';
+                statusText = '⏰ زمان گذشته';
+            } else {
+                statusClass = 'badge-warning';
+                statusText = '⏳ ' + rem.remaining + ' باقی مانده';
+            }
+
+            html += '<div class="reminder-item">';
+            html += '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;">';
+            html += '<div><strong>📩 از:</strong> ' + rem.sender + '</div>';
+            html += '<div><span class="badge ' + statusClass + '">' + statusText + '</span></div>';
+            html += '</div>';
+            html += '<div style="margin:8px 0;"><strong>📝 متن:</strong> ' + rem.message + '</div>';
+            
+            if (rem.whiteboards_list && rem.whiteboards_list.length > 0) {
+                html += '<div><strong>📂 وایتبردهای مرتبط:</strong> ';
+                rem.whiteboards_list.forEach(function(wb) {
+                    html += '<span class="tag">' + wb + '</span>';
+                });
+                html += '</div>';
+            }
+            
+            html += '<div style="font-size:12px;color:#666;margin-top:5px;">';
+            html += '🕒 ارسال: ' + rem.send_time + ' | ⏳ مهلت: ' + rem.dead_time;
+            html += '</div>';
+            
+            html += '<div style="margin-top:8px;">';
+            html += '<button onclick="deleteReminder(' + rem.id + ')" class="btn btn-danger btn-xs">🗑️ حذف</button>';
+            html += '</div>';
+            
+            html += '</div>';
+        });
+
+        container.innerHTML = html;
+    }
+
+    // حذف یادآوری توسط کاربر
+    function deleteReminder(reminderId) {
+        if (!confirm('آیا از حذف این یادآوری مطمئن هستید؟')) return;
+        if (!bossUsernameReal) {
+            alert('خطا: اطلاعات سیستم یافت نشد');
+            return;
+        }
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', 'whiteboard.php', true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                try {
+                    var response = JSON.parse(xhr.responseText);
+                    if (response.success) {
+                        alert('✅ یادآوری حذف شد');
+                        loadReminders();
+                    } else {
+                        alert('❌ خطا: ' + (response.error || 'نامشخص'));
+                    }
+                } catch(e) {
+                    alert('❌ خطا در پردازش پاسخ سرور');
+                }
+            }
+        };
+        xhr.send('action=delete_reminder&system_name=' + encodeURIComponent(bossUsernameReal) + 
+                 '&reminder_id=' + reminderId);
+    }
+
+    // ============================================
+    // خروج از سیستم
+    // ============================================
+    function agentLogout() {
+        if (confirm('آیا می‌خواهید اطلاعات ورود شما پاک شود؟')) {
+            clearSavedAgentInfo();
+        }
+        location.reload();
+    }
+
+    // ============================================
+    // رویدادها
+    // ============================================
+    document.getElementById('agentLoginBtn').addEventListener('click', agentLogin);
+    document.getElementById('agentLogoutBtn').addEventListener('click', agentLogout);
+    document.getElementById('backToWhiteboardsBtn').addEventListener('click', goBackToWhiteboards);
+    document.getElementById('submitMessageBtn').addEventListener('click', submitAgentMessage);
+    document.getElementById('sendReminderBtn').addEventListener('click', sendReminder);
+
+    document.getElementById('agentPassword').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') agentLogin();
+    });
+    document.getElementById('agentName').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') agentLogin();
+    });
+    document.getElementById('systemName').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') agentLogin();
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadSavedAgentInfo();
+        loadAvailableSystems();
+    });
+    </script>
+</body>
+</html>
